@@ -156,12 +156,10 @@ where Item.ID: Sendable {
             if !reconfigures.isEmpty {
                 UIView.performWithoutAnimation {
                     collectionView.reconfigureItems(at: reconfigures)
-                    //                        let invalidation =
-                    //                            UICollectionViewFlowLayoutInvalidationContext()
-                    //                        invalidation.invalidateItems(at: reconfigures)
-                    //                        collectionView.collectionViewLayout.invalidateLayout(
-                    //                            with: invalidation
-                    //                        )
+//                    let invalidation = UICollectionViewFlowLayoutInvalidationContext()
+//                    invalidation.invalidateFlowLayoutDelegateMetrics = true
+//                    invalidation.invalidateItems(at: reconfigures)
+//                    collectionView.collectionViewLayout.invalidateLayout(with: invalidation)
                 }
             }
         }
