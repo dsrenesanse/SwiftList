@@ -82,7 +82,7 @@ struct BenchmarkView: View {
 
    var body: some View {
       GeometryReader { proxy in
-         SwiftList(items: $items) { item in
+         SwiftList(items: items) { item in
             await Self.size(for: item.text, width: proxy.size.width)
          } cell: { item in
             Text(item.text)
@@ -107,6 +107,15 @@ struct BenchmarkView: View {
          .padding(6)
          .background(.thinMaterial, in: Capsule())
          .padding()
+      }
+      .toolbar {
+         ToolbarItem(placement: .topBarTrailing) {
+            NavigationLink {
+               EditableListView()
+            } label: {
+               Label("Edit", systemImage: "slider.horizontal.3")
+            }
+         }
       }
       .task { await generate() }
       .onAppear { fpsMonitor.start() }

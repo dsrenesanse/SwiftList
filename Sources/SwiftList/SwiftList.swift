@@ -12,16 +12,16 @@ public struct SwiftList<Item: Identifiable & Hashable & Sendable, Cell: View>:
     UIViewRepresentable
 where Item.ID: Sendable {
 
-    @Binding var items: [Item]
-    var itemSize: @Sendable (Item) async -> CGSize
-    @ViewBuilder var cell: (Item) -> Cell
+    let items: [Item]
+    let itemSize: @Sendable (Item) async -> CGSize
+    @ViewBuilder let cell: (Item) -> Cell
 
     public init(
-        items: Binding<[Item]>,
+        items: [Item],
         itemSize: @escaping @Sendable (Item) async -> CGSize,
         @ViewBuilder cell: @escaping (Item) -> Cell
     ) {
-        self._items = items
+        self.items = items
         self.itemSize = itemSize
         self.cell = cell
     }
@@ -45,7 +45,10 @@ where Item.ID: Sendable {
         return collectionView
     }
 
-    public func updateUIView(_ collectionView: UICollectionView, context: Context) {
+    public func updateUIView(
+        _ collectionView: UICollectionView,
+        context: Context
+    ) {
         context.coordinator.parent = self
         context.coordinator.apply(to: collectionView)
     }
@@ -156,10 +159,10 @@ where Item.ID: Sendable {
             if !reconfigures.isEmpty {
                 UIView.performWithoutAnimation {
                     collectionView.reconfigureItems(at: reconfigures)
-//                    let invalidation = UICollectionViewFlowLayoutInvalidationContext()
-//                    invalidation.invalidateFlowLayoutDelegateMetrics = true
-//                    invalidation.invalidateItems(at: reconfigures)
-//                    collectionView.collectionViewLayout.invalidateLayout(with: invalidation)
+                    //                    let invalidation = UICollectionViewFlowLayoutInvalidationContext()
+                    //                    invalidation.invalidateFlowLayoutDelegateMetrics = true
+                    //                    invalidation.invalidateItems(at: reconfigures)
+                    //                    collectionView.collectionViewLayout.invalidateLayout(with: invalidation)
                 }
             }
         }

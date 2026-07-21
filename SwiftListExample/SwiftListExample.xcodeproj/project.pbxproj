@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3727DFA5300FC16A00A582FB /* SwiftList in Frameworks */ = {isa = PBXBuildFile; productRef = 37931987300CA27B007FB5B8 /* SwiftList */; };
 		373489A0300CA472000CF595 /* SwiftList in Frameworks */ = {isa = PBXBuildFile; productRef = 3734899F300CA472000CF595 /* SwiftList */; };
 /* End PBXBuildFile section */
 
@@ -40,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3727DFA5300FC16A00A582FB /* SwiftList in Frameworks */,
 				373489A0300CA472000CF595 /* SwiftList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

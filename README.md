@@ -34,12 +34,12 @@ import SwiftList
 
 `SwiftList` takes three things:
 
-1. A binding to an array of items. Items must be `Identifiable`, `Hashable`, and `Sendable`. The hash is how SwiftList detects that an item's content changed.
+1. An array of items. Items must be `Identifiable`, `Hashable`, and `Sendable`. The hash is how SwiftList detects that an item's content changed.
 2. An async closure that returns the size for one item. This runs off the main thread, so you can do real text measurement here without blocking scrolling.
 3. A view builder for the cell.
 
 ```swift
-SwiftList(items: $items) { item in
+SwiftList(items: items) { item in
     // async — runs off the main thread
     await size(for: item)
 } cell: { item in
@@ -67,7 +67,7 @@ let inset: CGFloat = 12
 
 var body: some View {
     GeometryReader { proxy in
-        SwiftList(items: $items) { item in
+        SwiftList(items: items) { item in
             await Self.size(for: item.text, width: proxy.size.width)
         } cell: { item in
             Text(item.text)
@@ -191,7 +191,7 @@ Run the example, scroll while the text is streaming, and watch the meter stay at
 
 ## How it works
 
-1. When the `items` binding changes, SwiftList diffs the new array against the old one by id, with move inference.
+1. When `items` changes, SwiftList diffs the new array against the old one by id, with move inference.
 2. Items with the same id but a different hash are marked for reconfigure.
 3. Sizes for inserted and changed items are computed in parallel through your async closure and stored in a cache. Sizes for removed items are dropped from the cache.
 4. Inserts, deletes, and moves are applied with `performBatchUpdates`. Changed items are reconfigured in place with `reconfigureItems`, without animation, so streaming text does not flicker.

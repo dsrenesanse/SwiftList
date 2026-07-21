@@ -11,7 +11,9 @@ import SwiftUI
 struct SwiftListExampleApp: App {
   var body: some Scene {
     WindowGroup {
-      BenchmarkView()
+      NavigationStack {
+        BenchmarkView()
+      }
     }
   }
 }
