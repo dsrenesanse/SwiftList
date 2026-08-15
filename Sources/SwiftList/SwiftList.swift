@@ -14,15 +14,27 @@ where Item.ID: Sendable {
 
     let items: [Item]
     let itemSize: @Sendable (Item) async -> CGSize
+    let keyboardDismissMode: UIScrollView.KeyboardDismissMode
+    @Binding var scrollTarget: Item.ID?
+    let scrollPosition: UICollectionView.ScrollPosition
+    let scrollAnimated: Bool
     @ViewBuilder let cell: (Item) -> Cell
 
     public init(
         items: [Item],
         itemSize: @escaping @Sendable (Item) async -> CGSize,
+        keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none,
+        scrollTarget: Binding<Item.ID?> = .constant(nil),
+        scrollPosition: UICollectionView.ScrollPosition = .top,
+        scrollAnimated: Bool = true,
         @ViewBuilder cell: @escaping (Item) -> Cell
     ) {
         self.items = items
         self.itemSize = itemSize
+        self.keyboardDismissMode = keyboardDismissMode
+        self._scrollTarget = scrollTarget
+        self.scrollPosition = scrollPosition
+        self.scrollAnimated = scrollAnimated
         self.cell = cell
     }
 
@@ -35,6 +47,7 @@ where Item.ID: Sendable {
             frame: .zero,
             collectionViewLayout: layout
         )
+        collectionView.keyboardDismissMode = keyboardDismissMode
         collectionView.backgroundColor = .clear
         collectionView.dataSource = context.coordinator
         collectionView.delegate = context.coordinator
@@ -71,7 +84,22 @@ where Item.ID: Sendable {
                 await previousTask?.value
                 guard !Task.isCancelled else { return }
                 await self?.performApply(to: collectionView)
+                self?.flushScroll(on: collectionView)
             }
+        }
+
+        @MainActor
+        private func flushScroll(on collectionView: UICollectionView) {
+            guard
+                let target = parent.scrollTarget,
+                let index = currentItems.firstIndex(where: { $0.id == target })
+            else { return }
+            collectionView.scrollToItem(
+                at: IndexPath(item: index, section: 0),
+                at: parent.scrollPosition,
+                animated: parent.scrollAnimated
+            )
+            parent.scrollTarget = nil
         }
 
         @MainActor
