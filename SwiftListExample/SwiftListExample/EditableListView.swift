@@ -9,8 +9,6 @@ import SwiftList
 import SwiftUI
 import UIKit
 
-/// A simple, interactive example that shows how mutating the `items`
-/// binding drives inserts, deletes and moves inside `SwiftList`.
 struct EditableListView: View {
    @State private var items: [TextItem] = EditableListView.sampleItems()
 
@@ -21,7 +19,11 @@ struct EditableListView: View {
 
    var body: some View {
       GeometryReader { proxy in
-         SwiftList(items: items) { item in
+         SwiftList(
+            items: items,
+            reuseIds: Set(["TextView"]),
+            reuseIdentifier: {item in "TextView"},
+         ) { item in
             await Self.size(for: item.text, width: proxy.size.width)
          } cell: { item in
             row(for: item)

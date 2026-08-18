@@ -1,0 +1,7 @@
+{
+  "indentation": {
+    "spaces": 4
+  },
+  "indentSwitchCaseLabels": true,
+  "lineLength": 100
+}

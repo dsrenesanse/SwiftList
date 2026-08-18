@@ -14,6 +14,8 @@ where Item.ID: Sendable {
 
     let items: [Item]
     let itemSize: @Sendable (Item) async -> CGSize
+    let reuseIdentifier: (Item) -> String
+    let reuseIds: Set<String>
     let keyboardDismissMode: UIScrollView.KeyboardDismissMode
     @Binding var scrollTarget: Item.ID?
     let scrollPosition: UICollectionView.ScrollPosition
@@ -22,15 +24,19 @@ where Item.ID: Sendable {
 
     public init(
         items: [Item],
-        itemSize: @escaping @Sendable (Item) async -> CGSize,
+        reuseIds: Set<String>,
+        reuseIdentifier: @escaping (Item) -> String,
         keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none,
         scrollTarget: Binding<Item.ID?> = .constant(nil),
-        scrollPosition: UICollectionView.ScrollPosition = .top,
+        scrollPosition: UICollectionView.ScrollPosition = .centeredVertically,
         scrollAnimated: Bool = true,
+        itemSize: @escaping @Sendable (Item) async -> CGSize,
         @ViewBuilder cell: @escaping (Item) -> Cell
     ) {
         self.items = items
         self.itemSize = itemSize
+        self.reuseIdentifier = reuseIdentifier
+        self.reuseIds = reuseIds
         self.keyboardDismissMode = keyboardDismissMode
         self._scrollTarget = scrollTarget
         self.scrollPosition = scrollPosition
@@ -51,10 +57,12 @@ where Item.ID: Sendable {
         collectionView.backgroundColor = .clear
         collectionView.dataSource = context.coordinator
         collectionView.delegate = context.coordinator
-        collectionView.register(
-            UICollectionViewCell.self,
-            forCellWithReuseIdentifier: "cell"
-        )
+        for id in reuseIds {
+            collectionView.register(
+                UICollectionViewCell.self,
+                forCellWithReuseIdentifier: id
+            )
+        }
         return collectionView
     }
 
@@ -118,21 +126,21 @@ where Item.ID: Sendable {
 
             for change in diff {
                 switch change {
-                case .remove(let offset, _, let associatedWith):
-                    if associatedWith == nil {
-                        deletes.append(IndexPath(item: offset, section: 0))
-                    }
-                case .insert(let offset, _, let associatedWith):
-                    if let from = associatedWith {
-                        moves.append(
-                            (
-                                IndexPath(item: from, section: 0),
-                                IndexPath(item: offset, section: 0)
+                    case .remove(let offset, _, let associatedWith):
+                        if associatedWith == nil {
+                            deletes.append(IndexPath(item: offset, section: 0))
+                        }
+                    case .insert(let offset, _, let associatedWith):
+                        if let from = associatedWith {
+                            moves.append(
+                                (
+                                    IndexPath(item: from, section: 0),
+                                    IndexPath(item: offset, section: 0)
+                                )
                             )
-                        )
-                    } else {
-                        inserts.append(IndexPath(item: offset, section: 0))
-                    }
+                        } else {
+                            inserts.append(IndexPath(item: offset, section: 0))
+                        }
                 }
             }
 
@@ -206,11 +214,11 @@ where Item.ID: Sendable {
             _ collectionView: UICollectionView,
             cellForItemAt indexPath: IndexPath
         ) -> UICollectionViewCell {
+            let item = currentItems[indexPath.item]
             let cell = collectionView.dequeueReusableCell(
-                withReuseIdentifier: "cell",
+                withReuseIdentifier: parent.reuseIdentifier(item),
                 for: indexPath
             )
-            let item = currentItems[indexPath.item]
             cell.contentConfiguration = UIHostingConfiguration {
                 self.parent.cell(item)
             }

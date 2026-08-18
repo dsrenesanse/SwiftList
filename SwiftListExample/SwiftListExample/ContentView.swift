@@ -21,6 +21,20 @@ nonisolated struct TextItem: Identifiable, Hashable {
    var text: String
 }
 
+nonisolated enum BenchmarkItem: Identifiable, Hashable, Sendable {
+   case text(UUID, String)
+   case image(UUID, Int)
+   case button(UUID, String)
+
+   var id: UUID {
+      switch self {
+      case .text(let id, _): return id
+      case .image(let id, _): return id
+      case .button(let id, _): return id
+      }
+   }
+}
+
 @MainActor
 @Observable
 final class FPSMonitor {
@@ -70,7 +84,7 @@ final class FPSMonitor {
 }
 
 struct BenchmarkView: View {
-   @State private var items: [TextItem] = []
+   @State private var items: [BenchmarkItem] = []
    @State private var fpsMonitor = FPSMonitor()
 
    private static let words = [
@@ -82,17 +96,21 @@ struct BenchmarkView: View {
 
    var body: some View {
       GeometryReader { proxy in
-         SwiftList(items: items) { item in
-            await Self.size(for: item.text, width: proxy.size.width)
-         } cell: { item in
-            Text(item.text)
-               .font(.body)
-               .frame(maxWidth: .infinity, alignment: .leading)
-               .padding(inset)
-               .background(
-                  RoundedRectangle(cornerRadius: 12)
-                     .fill(Color(.secondarySystemBackground))
-               )
+         SwiftList(
+            items: items,
+            reuseIds: Set(["Text", "Image", "Button"]),
+            reuseIdentifier: { item in
+               switch item {
+               case .text: return "Text"
+               case .image: return "Image"
+               case .button: return "Button"
+               }
+            },
+            itemSize: { item in
+               await Self.size(for: item, width: proxy.size.width)
+            }
+         ) { item in
+            Self.cell(for: item)
          }
       }
       .overlay(alignment: .bottomTrailing) {
@@ -131,39 +149,90 @@ struct BenchmarkView: View {
 
    private func generate() async {
       // Initial single item
-      items.append(TextItem(text: Self.words.randomElement()!))
+      items.append(.text(UUID(), Self.words.randomElement()!))
 
       while !Task.isCancelled {
          try? await Task.sleep(for: .milliseconds(10))
          let word = Self.words.randomElement()!
-
-         if items[items.count - 1].text.count > 50_000_000_000_000_000 {
-            // Latest "message" is full — start a new one
-            items.append(TextItem(text: word))
-         } else {
-            // Keep streaming into the latest item
-            items[items.count - 1].text += " " + word
+         if case .text(_, let text) = items[items.count - 1] {
+            if text.count > 3000 {
+               items.append(.image(UUID(), Int.random(in: 0..<Self.imageNames.count)))
+               items.append(.button(UUID(), Self.words.randomElement()!))
+               items.append(.text(UUID(), word))
+            } else {
+               let id = items[items.count - 1].id
+               items[items.count - 1] = .text(id, text + " " + word)
+            }
          }
       }
    }
 
    @concurrent
    private static func size(
-      for text: String,
+      for item: BenchmarkItem,
       width: CGFloat
    ) async -> CGSize {
-      let font = UIFont.preferredFont(forTextStyle: .body)
-      let target = CGSize(
-         width: max(width - inset * 2, 0),
-         height: .greatestFiniteMagnitude
-      )
-      let rect = (text as NSString).boundingRect(
-         with: target,
-         options: [.usesLineFragmentOrigin, .usesFontLeading],
-         attributes: [.font: font],
-         context: nil
-      )
-      return CGSize(width: width, height: ceil(rect.height) + inset * 2)
+      switch item {
+      case .text(_, let text):
+         let font = UIFont.preferredFont(forTextStyle: .body)
+         let target = CGSize(
+            width: max(width - inset * 2, 0),
+            height: .greatestFiniteMagnitude
+         )
+         let rect = (text as NSString).boundingRect(
+            with: target,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+         )
+         return CGSize(width: width, height: ceil(rect.height) + inset * 2)
+      case .image:
+         return CGSize(width: width / 2, height: 160)
+      case .button:
+         return CGSize(width: width / 1.5, height: 56)
+      }
+   }
+
+   private static let imageNames = [
+      "photo", "photo.fill", "person.crop.circle", "star.fill", "heart.fill",
+   ]
+
+   @ViewBuilder
+   private static func cell(for item: BenchmarkItem) -> some View {
+      switch item {
+      case .text(_, let text):
+         Text(text)
+            .font(.body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(inset)
+            .background(
+               RoundedRectangle(cornerRadius: 12)
+                  .fill(Color(.secondarySystemBackground))
+            )
+      case .image(_, let index):
+         Image(systemName: Self.imageNames[index % Self.imageNames.count])
+            .font(.system(size: 72))
+            .frame(maxWidth: .infinity)
+            .padding(inset)
+            .background(
+               RoundedRectangle(cornerRadius: 12)
+                  .fill(Color(.secondarySystemBackground))
+            )
+      case .button(_, let label):
+         Button {
+            // no-op action for the demo
+         } label: {
+            Text(label)
+               .font(.headline)
+               .frame(maxWidth: .infinity)
+               .padding(inset)
+               .foregroundStyle(.white)
+               .background(
+                  RoundedRectangle(cornerRadius: 12)
+                     .fill(Color.accentColor)
+               )
+         }
+      }
    }
 }
 
