@@ -3,5 +3,8 @@
     "spaces": 4
   },
   "indentSwitchCaseLabels": true,
-  "lineLength": 100
+  "lineLength": 100,
+  "rules": {
+    "UseShorthandTypeNames": false
+  }
 }

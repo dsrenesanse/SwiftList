@@ -48,8 +48,6 @@ struct EditableListView: View {
       }
    }
 
-   // MARK: - Cell
-
    @ViewBuilder
    private func row(for item: TextItem) -> some View {
       HStack(spacing: 12) {
@@ -85,8 +83,6 @@ struct EditableListView: View {
       )
    }
 
-   // MARK: - Mutations
-
    private func add() {
       let word = Self.words.randomElement()!
       items.append(TextItem(text: "\(items.count + 1). \(word)"))
@@ -113,8 +109,6 @@ struct EditableListView: View {
    private func shuffle() {
       items.shuffle()
    }
-
-   // MARK: - Helpers
 
    private static func sampleItems() -> [TextItem] {
       words.enumerated().prefix(6).map { index, word in

@@ -44,8 +44,6 @@ where Item.ID: Sendable {
         self.cell = cell
     }
 
-    public func makeCoordinator() -> Coordinator { Coordinator(self) }
-
     public func makeUIView(context: Context) -> UICollectionView {
         let layout = UICollectionViewFlowLayout()
         layout.estimatedItemSize = .zero
@@ -73,7 +71,10 @@ where Item.ID: Sendable {
         context.coordinator.parent = self
         context.coordinator.apply(to: collectionView)
     }
+	
+	public func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+	@MainActor
     public final class Coordinator: NSObject, UICollectionViewDataSource,
         UICollectionViewDelegateFlowLayout
     {
@@ -96,7 +97,7 @@ where Item.ID: Sendable {
             }
         }
 
-        @MainActor
+        
         private func flushScroll(on collectionView: UICollectionView) {
             guard
                 let target = parent.scrollTarget,
@@ -110,7 +111,7 @@ where Item.ID: Sendable {
             parent.scrollTarget = nil
         }
 
-        @MainActor
+        
         private func performApply(to collectionView: UICollectionView) async {
             let newItems = parent.items
             let newIDs = newItems.map(\.id)
