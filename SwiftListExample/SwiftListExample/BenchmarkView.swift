@@ -221,7 +221,6 @@ struct ImageShowcaseView: View {
 
     private func generate() async {
         while !Task.isCancelled {
-			try? await Task.sleep(for: .seconds(0.2))
             let url = Self.imageURL(for: items.count)
             guard let image = await ImageLoader.load(url) else { continue }
             let item = ImageItem(

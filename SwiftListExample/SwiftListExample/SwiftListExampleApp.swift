@@ -9,11 +9,11 @@ import SwiftUI
 
 @main
 struct SwiftListExampleApp: App {
-  var body: some Scene {
-    WindowGroup {
-      NavigationStack {
-        BenchmarkView()
-      }
+    var body: some Scene {
+        WindowGroup {
+            NavigationStack {
+                BenchmarkView()
+            }
+        }
     }
-  }
 }
