@@ -80,7 +80,7 @@ where Item.ID: Sendable {
         var parent: SwiftList
 
         private var currentItems = Array<Item>()
-		private var oldState = Dictionary<Item.ID, Int>()
+        private var oldState = Dictionary<Item.ID, Int>()
         private var sizeCache = Dictionary<Item.ID, CGSize>()
         private var applyTask: Task<Void, Never>?
 
@@ -120,8 +120,8 @@ where Item.ID: Sendable {
 
             let diff = newIDs.difference(from: oldIDs).inferringMoves()
             let (deletes, inserts, moves) = identifyChanges(diff: diff)
-			let reconfigures = identifyReconfigures()
-            
+            let reconfigures = identifyReconfigures()
+
             guard
                 !deletes.isEmpty || !inserts.isEmpty || !moves.isEmpty
                     || !reconfigures.isEmpty
@@ -169,19 +169,19 @@ where Item.ID: Sendable {
                 }
             }
         }
-		
-		private func identifyReconfigures() -> Array<IndexPath> {
-			var reconfigures: [IndexPath] = []
-			let oldHashes = Dictionary(
-				uniqueKeysWithValues: currentItems.map { ($0.id, $0.hashValue) }
-			)
-			for (index, item) in parent.items.enumerated() {
-				if let oldHash = oldHashes[item.id], oldHash != item.hashValue {
-					reconfigures.append(IndexPath(item: index, section: 0))
-				}
-			}
-			return reconfigures
-		}
+
+        private func identifyReconfigures() -> Array<IndexPath> {
+            var reconfigures: [IndexPath] = []
+            let oldHashes = Dictionary(
+                uniqueKeysWithValues: currentItems.map { ($0.id, $0.hashValue) }
+            )
+            for (index, item) in parent.items.enumerated() {
+                if let oldHash = oldHashes[item.id], oldHash != item.hashValue {
+                    reconfigures.append(IndexPath(item: index, section: 0))
+                }
+            }
+            return reconfigures
+        }
 
         private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
             Array<IndexPath>,
