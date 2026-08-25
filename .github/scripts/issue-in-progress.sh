@@ -27,4 +27,4 @@ field=$(gh project field-list "${project[@]}" --jq '.fields[] | select(.name == 
 
 gh project item-edit --id "$item_id" --project-id "$project_id" \
   --field-id "$(jq -r .id <<< "$field")" \
-  --single-select-option-id "$(jq -re '.options[] | select(.name == "In Progress") | .id' <<< "$field")"
+  --single-select-option-id "$(jq -re '.options[] | select(.name == "In progress") | .id' <<< "$field")"
