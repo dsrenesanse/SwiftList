@@ -1,0 +1,33 @@
+name: Issue in progress
+
+on:
+  create:
+  issues:
+    types: [assigned]
+
+permissions:
+  contents: read
+  issues: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  PROJECT_TOKEN: ${{ secrets.PROJECT_TOKEN }} # classic PAT, `project` scope
+  PROJECT_OWNER: ${{ vars.PROJECT_OWNER }}
+  PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER }}
+
+jobs:
+  in-progress:
+    if: github.event_name == 'issues' || github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Resolve issue and update status
+        env:
+          # Issue number, or branch name — issue UI names branches "<issue-number>-<slug>"
+          REF: ${{ github.event.issue.number || github.event.ref }}
+        run: |
+          [[ "$REF" =~ ^([0-9]+)(-|$) ]] || exit 0
+          .github/scripts/issue-in-progress.sh "${BASH_REMATCH[1]}"
