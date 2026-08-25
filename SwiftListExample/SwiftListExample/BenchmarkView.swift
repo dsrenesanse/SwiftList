@@ -115,6 +115,7 @@ struct TextShowcaseView: View {
                 "\(Int(fpsMonitor.fps.rounded())) / \(fpsMonitor.maximumFPS) fps"
             )
             .foregroundStyle(fpsColor)
+			.font(.title)
             Text("items: \(items.count)")
         }
         .font(.caption.monospacedDigit())
@@ -203,6 +204,7 @@ struct ImageShowcaseView: View {
             Text(
                 "\(Int(fpsMonitor.fps.rounded())) / \(fpsMonitor.maximumFPS) fps"
             )
+			.font(.title)
             .foregroundStyle(fpsColor)
             Text("items: \(items.count)")
         }

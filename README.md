@@ -1,8 +1,6 @@
 # SwiftList
 
-<br>
-
-<br>
+![ProMotion demo](demo.gif)
 
 A fast list for SwiftUI, built on `UICollectionView` with a flow layout and async item size estimation.
 
