@@ -14,7 +14,7 @@ public struct SwiftList<Item: Identifiable & Hashable & Sendable, Cell: View>:
 where Item.ID: Sendable {
 
     let items: Array<Item>
-    let itemSize: @Sendable (Item) async -> CGSize
+    let itemSize: (Item) async -> CGSize
     let reuseIdentifier: (Item) -> String
     let reuseIds: Set<String>
     let keyboardDismissMode: UIScrollView.KeyboardDismissMode
@@ -31,7 +31,7 @@ where Item.ID: Sendable {
         scrollTarget: Binding<Item.ID?> = .constant(nil),
         scrollPosition: UICollectionView.ScrollPosition = .centeredVertically,
         scrollAnimated: Bool = true,
-        itemSize: @escaping @Sendable (Item) async -> CGSize,
+        itemSize: @escaping (Item) async -> CGSize,
         @ViewBuilder cell: @escaping (Item) -> Cell
     ) {
         self.items = items
