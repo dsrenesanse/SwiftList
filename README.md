@@ -17,14 +17,19 @@ It is made for lists where items change all the time — chat apps, and especial
 
 ## Usage
 
-`SwiftList` takes three things:
+`SwiftList` takes four things, plus the cell builder:
 
 1. An array of items. Items must be `Identifiable`, `Hashable`, and `Sendable`. The hash is how SwiftList detects that an item's content changed.
-2. An async closure that returns the size for one item. This should run off the main thread, so you can do real measurement here without blocking scrolling.
-3. A view builder for the cell.
+2. Reuse identifiers. Both `reuseIds` (a set of cell ids) and `reuseIdentifier` (a closure mapping each item to one of those ids) are **required**. They tell `UICollectionView` which registered cell type an item uses — return the same string for items that share a cell type.
+3. An async closure that returns the size for one item. This should run off the main thread, so you can do real measurement here without blocking scrolling.
+4. A view builder for the cell.
 
 ```swift
-SwiftList(items: items) { item in
+SwiftList(
+    items: items,
+    reuseIds: Set(["Text"]),
+    reuseIdentifier: { _ in "Text" }
+) { item in
     // async — runs off the main thread
     await size(for: item)
 } cell: { item in
