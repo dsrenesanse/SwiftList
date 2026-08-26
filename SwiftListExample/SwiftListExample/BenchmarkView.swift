@@ -57,6 +57,13 @@ struct BenchmarkView: View {
                     Label("Edit", systemImage: "slider.horizontal.3")
                 }
             }
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    ScrollToIndexView()
+                } label: {
+                    Label("Scroll", systemImage: "scope")
+                }
+            }
         }
     }
 }
