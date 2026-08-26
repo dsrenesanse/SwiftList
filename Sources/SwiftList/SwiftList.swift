@@ -51,7 +51,7 @@ where Item.ID: Sendable {
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.keyboardDismissMode = keyboardDismissMode
         collectionView.backgroundColor = .clear
-        context.coordinator.makeDataSource(for: collectionView)
+        collectionView.dataSource = context.coordinator
         collectionView.delegate = context.coordinator
         for id in reuseIds {
             collectionView.register(
@@ -59,7 +59,6 @@ where Item.ID: Sendable {
                 forCellWithReuseIdentifier: id
             )
         }
-
         return collectionView
     }
 
@@ -73,108 +72,172 @@ where Item.ID: Sendable {
 
     public func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    @MainActor
-    public final class Coordinator: NSObject, UICollectionViewDelegateFlowLayout {
-
+    public final class Coordinator: NSObject, UICollectionViewDataSource,
+        UICollectionViewDelegateFlowLayout
+    {
         var parent: SwiftList
-        private var dataSource: UICollectionViewDiffableDataSource<Int, Item.ID>!
-        private var hashes: Dictionary<Item.ID, Int> = [:]
-        private var sizes: Dictionary<Item.ID, CGSize> = [:]
+        private var sizeCache = Dictionary<Item.ID, CGSize>()
+        private var oldHashState = OrderedDictionary<Item.ID, Int>()
 
-        init(_ parent: SwiftList) {
-            self.parent = parent
-            super.init()
-        }
+        init(_ parent: SwiftList) { self.parent = parent }
 
-        func makeDataSource(for collectionView: UICollectionView) {
-            dataSource = .init(collectionView: collectionView) { [weak self] cv, indexPath, id in
-                guard let self, let item = self.parent.items.first(where: { $0.id == id })
-                else { return UICollectionViewCell() }
-
-                let cell = cv.dequeueReusableCell(
-                    withReuseIdentifier: self.parent.reuseIdentifier(item),
-                    for: indexPath
-                )
-                cell.contentConfiguration = UIHostingConfiguration {
-                    self.parent.cell(item)
-                }
-                .margins(.all, 0)
-                return cell
-            }
-        }
-
-        private var task: Task<Void, Never>?
+        var task: Task<Void, Never>?
 
         func apply(to collectionView: UICollectionView) {
-			Task {
-                await performApply(on: collectionView)
+            let oldTask = task
+            task = Task {
+                await oldTask?.value
+                await performApply(to: collectionView)
+                flushScroll(on: collectionView)
             }
-        }
-
-        private func performApply(on collectionView: UICollectionView) async {
-            let unmeasured = parent.items.filter { sizes[$0.id] == nil }
-            let tasks = unmeasured.map { item in
-                (id: item.id, task: Task { await parent.itemSize(item) })
-            }
-            for entry in tasks {
-                sizes[entry.id] = await entry.task.value
-            }
-
-            let ids = parent.items.map(\.id)
-            if ids != dataSource.snapshot().itemIdentifiers {
-                var snapshot = NSDiffableDataSourceSnapshot<Int, Item.ID>()
-                snapshot.appendSections([0])
-                snapshot.appendItems(ids)
-                await dataSource.apply(snapshot, animatingDifferences: true)
-            }
-
-			let known = Set(dataSource.snapshot().itemIdentifiers)
-
-			var changed: Array<Item> = []
-			for item in parent.items
-			where known.contains(item.id) && hashes[item.id] != item.hashValue {
-				hashes[item.id] = item.hashValue
-				changed.append(item)
-			}
-
-			if !changed.isEmpty {
-				let tasks = changed.map { item in
-					(id: item.id, task: Task { await parent.itemSize(item) })
-				}
-				for entry in tasks {
-					sizes[entry.id] = await entry.task.value
-				}
-
-				var snapshot = dataSource.snapshot()
-				snapshot.reconfigureItems(changed.map(\.id))
-				await dataSource.apply(snapshot, animatingDifferences: false)
-			}
-
-            flushScroll(on: collectionView)
         }
 
         private func flushScroll(on collectionView: UICollectionView) {
             guard
                 let target = parent.scrollTarget,
-                let indexPath = dataSource.indexPath(for: target)
+                let index = parent.items.firstIndex(where: { $0.id == target })
             else { return }
             collectionView.scrollToItem(
-                at: indexPath,
+                at: IndexPath(item: index, section: 0),
                 at: parent.scrollPosition,
                 animated: parent.scrollAnimated
             )
             parent.scrollTarget = nil
         }
 
+        private func performApply(to collectionView: UICollectionView) async {
+            let newIds = OrderedSet(parent.items.lazy.map(\.id))
+            let oldIds = oldHashState.keys
+            let diff = newIds.difference(from: oldIds).inferringMoves()
+            let (deletes, inserts, moves) = identifyChanges(diff: diff)
+            let consitencyCheck =
+			collectionView.numberOfItems(inSection: 0) - deletes.count + inserts.count == parent.items.count
+            if consitencyCheck {
+				if moves.isEmpty {
+					if !deletes.isEmpty { collectionView.deleteItems(at: deletes) }
+					if !inserts.isEmpty { collectionView.insertItems(at: inserts) }
+				} else {
+					collectionView.performBatchUpdates {
+						collectionView.deleteItems(at: deletes)
+						collectionView.insertItems(at: inserts)
+						for move in moves { collectionView.moveItem(at: move.from, to: move.to) }
+					}
+				}
+            }
+
+            var reconfigures = Array<IndexPath>()
+            for (index, item) in parent.items.enumerated() {
+                let oldHash = oldHashState[item.id]
+                let newHash = item.hashValue
+                if oldHash != newHash {
+                    reconfigures.append(IndexPath(item: index, section: 0))
+                }
+            }
+            await calculateAndCacheSizes(indexes: reconfigures)
+            UIView.performWithoutAnimation {
+                collectionView.reconfigureItems(at: reconfigures)
+            }
+            //            let moves = collectMoves(old: oldIds, new: newIds)
+                        
+            oldHashState = OrderedDictionary(
+                uniqueKeysWithValues: parent.items.map { ($0.id, $0.hashValue) }
+            )
+        }
+
+        private func collectMoves(
+            old: OrderedSet<Item.ID>,
+            new: OrderedSet<Item.ID>
+        ) -> Array<(from: IndexPath, to: IndexPath)> {
+            var moves = Array<(from: IndexPath, to: IndexPath)>()
+            for (index, id) in old.enumerated() {
+                guard let newIndex = new.firstIndex(of: id), index != newIndex else {
+                    continue
+                }
+                let move = (
+                    from: IndexPath(item: index, section: 0),
+                    to: IndexPath(item: newIndex, section: 0)
+                )
+                moves.append(move)
+            }
+            return moves
+        }
+
+        private func calculateAndCacheSizes(indexes: Array<IndexPath>) async {
+            let tasks = indexes.map { index in
+                let item = parent.items[index.item]
+                return Task { await (id: item.id, size: parent.itemSize(item)) }
+            }
+            for task in tasks {
+                let result = await task.value
+                sizeCache[result.id] = result.size
+            }
+        }
+
         public func collectionView(
             _ collectionView: UICollectionView,
-            layout: UICollectionViewLayout,
+            numberOfItemsInSection section: Int
+        ) -> Int {
+            parent.items.count
+        }
+
+        public func collectionView(
+            _ collectionView: UICollectionView,
+            cellForItemAt indexPath: IndexPath
+        ) -> UICollectionViewCell {
+            let item = parent.items[indexPath.item]
+            let cell = collectionView.dequeueReusableCell(
+                withReuseIdentifier: parent.reuseIdentifier(item),
+                for: indexPath
+            )
+            cell.contentConfiguration = UIHostingConfiguration {
+                self.parent.cell(item)
+            }
+            .margins(.all, 0)
+            return cell
+        }
+
+        public func collectionView(
+            _ collectionView: UICollectionView,
+            layout collectionViewLayout: UICollectionViewLayout,
             sizeForItemAt indexPath: IndexPath
         ) -> CGSize {
-            guard let id = dataSource.itemIdentifier(for: indexPath) else {
-                return .zero
+            sizeCache[parent.items[indexPath.item].id] ?? .zero
+        }
+
+        private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
+            Array<IndexPath>,
+            Array<IndexPath>,
+            Array<(from: IndexPath, to: IndexPath)>,
+        ) {
+            var deletes = Array<IndexPath>()
+            var inserts = Array<IndexPath>()
+            var moves = Array<(from: IndexPath, to: IndexPath)>()
+
+            for change in diff {
+                switch change {
+                    case .remove(let offset, _, let associatedWith):
+                        if associatedWith == nil {
+                            deletes.append(IndexPath(item: offset, section: 0))
+                        }
+                    case .insert(let offset, _, let associatedWith):
+                        if let from = associatedWith {
+                            moves.append(
+                                (
+                                    IndexPath(item: from, section: 0),
+                                    IndexPath(item: offset, section: 0)
+                                )
+                            )
+                        } else {
+                            inserts.append(IndexPath(item: offset, section: 0))
+                        }
+                }
             }
-            return sizes[id] ?? .zero
+
+            return (
+                deletes,
+                inserts,
+                moves,
+            )
         }
     }
 }

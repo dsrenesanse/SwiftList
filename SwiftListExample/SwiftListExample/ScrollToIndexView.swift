@@ -21,7 +21,7 @@ struct ScrollToIndexView: View {
             reuseIds: Set(["TextView"]),
             reuseIdentifier: { _ in "TextView" },
             scrollTarget: $scrollTarget,
-            scrollPosition: .centeredVertically,
+			scrollPosition: .centeredVertically,
             scrollAnimated: true,
          ) { item in
             await Self.size(for: item.text, width: proxy.size.width)

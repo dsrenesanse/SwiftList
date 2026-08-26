@@ -102,7 +102,7 @@ struct TextShowcaseView: View {
                             .fill(Color(.secondarySystemBackground))
                     )
             }
-            .ignoresSafeArea(.all, edges: .bottom)
+			.ignoresSafeArea(.all, edges: .vertical)
         }
         .overlay(alignment: .bottomTrailing) {
             fpsOverlay
@@ -196,7 +196,7 @@ struct ImageShowcaseView: View {
             ) { item in
                 Self.cell(for: item)
             }
-            .ignoresSafeArea(.all, edges: .bottom)
+			.ignoresSafeArea(.all, edges: .vertical)
         }
         .overlay(alignment: .bottomTrailing) {
             fpsOverlay
