@@ -72,6 +72,7 @@ where Item.ID: Sendable {
 
     public func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+	// main actor by default
     public final class Coordinator: NSObject, UICollectionViewDataSource,
         UICollectionViewDelegateFlowLayout
     {
@@ -110,9 +111,11 @@ where Item.ID: Sendable {
             let oldIds = oldHashState.keys
             let diff = newIds.difference(from: oldIds).inferringMoves()
             let (deletes, inserts, moves) = identifyChanges(diff: diff)
-            let consitencyCheck =
+			
+            let consitencyCheckPassed =
 			collectionView.numberOfItems(inSection: 0) - deletes.count + inserts.count == parent.items.count
-            if consitencyCheck {
+			
+            if consitencyCheckPassed {
 				if moves.isEmpty {
 					if !deletes.isEmpty { collectionView.deleteItems(at: deletes) }
 					if !inserts.isEmpty { collectionView.insertItems(at: inserts) }
@@ -137,29 +140,9 @@ where Item.ID: Sendable {
             UIView.performWithoutAnimation {
                 collectionView.reconfigureItems(at: reconfigures)
             }
-            //            let moves = collectMoves(old: oldIds, new: newIds)
-                        
             oldHashState = OrderedDictionary(
                 uniqueKeysWithValues: parent.items.map { ($0.id, $0.hashValue) }
             )
-        }
-
-        private func collectMoves(
-            old: OrderedSet<Item.ID>,
-            new: OrderedSet<Item.ID>
-        ) -> Array<(from: IndexPath, to: IndexPath)> {
-            var moves = Array<(from: IndexPath, to: IndexPath)>()
-            for (index, id) in old.enumerated() {
-                guard let newIndex = new.firstIndex(of: id), index != newIndex else {
-                    continue
-                }
-                let move = (
-                    from: IndexPath(item: index, section: 0),
-                    to: IndexPath(item: newIndex, section: 0)
-                )
-                moves.append(move)
-            }
-            return moves
         }
 
         private func calculateAndCacheSizes(indexes: Array<IndexPath>) async {
