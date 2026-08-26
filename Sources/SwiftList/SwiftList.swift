@@ -14,7 +14,7 @@ public struct SwiftList<Item: Identifiable & Hashable & Sendable, Cell: View>:
 where Item.ID: Sendable {
 
     let items: Array<Item>
-    let itemSize: @Sendable (Item) async -> CGSize
+    let itemSize: (Item) async -> CGSize
     let reuseIdentifier: (Item) -> String
     let reuseIds: Set<String>
     let keyboardDismissMode: UIScrollView.KeyboardDismissMode
@@ -31,7 +31,7 @@ where Item.ID: Sendable {
         scrollTarget: Binding<Item.ID?> = .constant(nil),
         scrollPosition: UICollectionView.ScrollPosition = .centeredVertically,
         scrollAnimated: Bool = true,
-        itemSize: @escaping @Sendable (Item) async -> CGSize,
+        itemSize: @escaping (Item) async -> CGSize,
         @ViewBuilder cell: @escaping (Item) -> Cell
     ) {
         self.items = items
@@ -72,6 +72,7 @@ where Item.ID: Sendable {
 
     public func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+	// main actor by default
     public final class Coordinator: NSObject, UICollectionViewDataSource,
         UICollectionViewDelegateFlowLayout
     {
@@ -81,20 +82,15 @@ where Item.ID: Sendable {
 
         init(_ parent: SwiftList) { self.parent = parent }
 
+        var task: Task<Void, Never>?
+
         func apply(to collectionView: UICollectionView) {
-            Task {
+            let oldTask = task
+            task = Task {
+                await oldTask?.value
                 await performApply(to: collectionView)
-				flushScroll(on: collectionView)
+                flushScroll(on: collectionView)
             }
-            //			flushScroll(on: collectionView)
-            //            let previousTask = applyTask
-            //            previousTask?.cancel()
-            //            applyTask = Task { [weak self] in
-            //                await previousTask?.value
-            //                guard !Task.isCancelled else { return }
-            //                await self?.performApply(to: collectionView)
-            //                self?.flushScroll(on: collectionView)
-            //            }
         }
 
         private func flushScroll(on collectionView: UICollectionView) {
@@ -113,36 +109,24 @@ where Item.ID: Sendable {
         private func performApply(to collectionView: UICollectionView) async {
             let newIds = OrderedSet(parent.items.lazy.map(\.id))
             let oldIds = oldHashState.keys
-            var deletes = Array<IndexPath>()
-            for id in oldIds.subtracting(newIds) {
-                guard let index = oldHashState.index(forKey: id) else { continue }
-                deletes.append(IndexPath(item: index, section: 0))
+            let diff = newIds.difference(from: oldIds).inferringMoves()
+            let (deletes, inserts, moves) = identifyChanges(diff: diff)
+			
+            let consitencyCheckPassed =
+			collectionView.numberOfItems(inSection: 0) - deletes.count + inserts.count == parent.items.count
+			
+            if consitencyCheckPassed {
+				if moves.isEmpty {
+					if !deletes.isEmpty { collectionView.deleteItems(at: deletes) }
+					if !inserts.isEmpty { collectionView.insertItems(at: inserts) }
+				} else {
+					collectionView.performBatchUpdates {
+						collectionView.deleteItems(at: deletes)
+						collectionView.insertItems(at: inserts)
+						for move in moves { collectionView.moveItem(at: move.from, to: move.to) }
+					}
+				}
             }
-            for delete in deletes {
-                oldHashState.remove(at: delete.item)
-            }
-
-            var inserts = Array<IndexPath>()
-            for id in newIds.subtracting(oldIds) {
-                guard let index = newIds.firstIndex(of: id) else { continue }
-                inserts.append(IndexPath(item: index, section: 0))
-            }
-
-            if collectionView.numberOfItems(inSection: 0) != parent.items.count {
-                collectionView.performBatchUpdates {
-                    collectionView.insertItems(at: inserts)
-                    collectionView.deleteItems(at: deletes)
-                }
-            }
-            //			let moves = collectMoves(old: oldIds, new: newIds)
-            //			if !moves.isEmpty {
-            //				collectionView.performBatchUpdates {
-            //					moves.forEach {
-            //						collectionView.moveItem(at: $0.from, to: $0.to)
-            //					}
-            //				}
-            ////				return
-            //			}
 
             var reconfigures = Array<IndexPath>()
             for (index, item) in parent.items.enumerated() {
@@ -150,31 +134,16 @@ where Item.ID: Sendable {
                 let newHash = item.hashValue
                 if oldHash != newHash {
                     reconfigures.append(IndexPath(item: index, section: 0))
-                    oldHashState[item.id] = newHash
                 }
             }
             await calculateAndCacheSizes(indexes: reconfigures)
             UIView.performWithoutAnimation {
                 collectionView.reconfigureItems(at: reconfigures)
             }
+            oldHashState = OrderedDictionary(
+                uniqueKeysWithValues: parent.items.map { ($0.id, $0.hashValue) }
+            )
         }
-
-        //        private func collectMoves(
-        //            old: OrderedSet<Item.ID>,
-        //            new: OrderedSet<Item.ID>
-        //        ) -> Array<(from: IndexPath, to: IndexPath)> {
-        //            var moves = Array<(from: IndexPath, to: IndexPath)>()
-        //            for (index, id) in old.enumerated() {
-        //                guard let newIndex = new.firstIndex(of: id) else { continue }
-        //                let move = (
-        //                    from: IndexPath(item: index, section: 0),
-        //                    to: IndexPath(item: newIndex, section: 0)
-        //                )
-        //                moves.append(move)
-        //
-        //            }
-        //            return moves
-        //        }
 
         private func calculateAndCacheSizes(indexes: Array<IndexPath>) async {
             let tasks = indexes.map { index in
@@ -216,6 +185,42 @@ where Item.ID: Sendable {
             sizeForItemAt indexPath: IndexPath
         ) -> CGSize {
             sizeCache[parent.items[indexPath.item].id] ?? .zero
+        }
+
+        private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
+            Array<IndexPath>,
+            Array<IndexPath>,
+            Array<(from: IndexPath, to: IndexPath)>,
+        ) {
+            var deletes = Array<IndexPath>()
+            var inserts = Array<IndexPath>()
+            var moves = Array<(from: IndexPath, to: IndexPath)>()
+
+            for change in diff {
+                switch change {
+                    case .remove(let offset, _, let associatedWith):
+                        if associatedWith == nil {
+                            deletes.append(IndexPath(item: offset, section: 0))
+                        }
+                    case .insert(let offset, _, let associatedWith):
+                        if let from = associatedWith {
+                            moves.append(
+                                (
+                                    IndexPath(item: from, section: 0),
+                                    IndexPath(item: offset, section: 0)
+                                )
+                            )
+                        } else {
+                            inserts.append(IndexPath(item: offset, section: 0))
+                        }
+                }
+            }
+
+            return (
+                deletes,
+                inserts,
+                moves,
+            )
         }
     }
 }

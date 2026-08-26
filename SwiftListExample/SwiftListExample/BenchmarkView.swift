@@ -31,6 +31,8 @@ nonisolated struct ImageItem: Identifiable, Hashable {
 enum ShowcaseTab: Hashable {
     case text
     case images
+    case edit
+    case scroll
 }
 
 struct BenchmarkView: View {
@@ -48,15 +50,20 @@ struct BenchmarkView: View {
                     Label("Images", systemImage: "photo")
                 }
                 .tag(ShowcaseTab.images)
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    EditableListView()
-                } label: {
-                    Label("Edit", systemImage: "slider.horizontal.3")
-                }
+            NavigationStack {
+                EditableListView()
             }
+            .tabItem {
+                Label("Edit", systemImage: "slider.horizontal.3")
+            }
+            .tag(ShowcaseTab.edit)
+            NavigationStack {
+                ScrollToIndexView()
+            }
+            .tabItem {
+                Label("Scroll", systemImage: "scope")
+            }
+            .tag(ShowcaseTab.scroll)
         }
     }
 }
@@ -66,6 +73,8 @@ struct TextShowcaseView: View {
 
     @State private var items: [TextItem] = []
     @State private var fpsMonitor = FPSMonitor()
+    @State private var fpsFontIndex = 1
+    private let fpsFontSizes: [Font] = [.caption2, .caption, .footnote, .body, .title3]
 
     private static let words = [
         "swift", "collection", "layout", "performance", "asynchronous",
@@ -93,7 +102,7 @@ struct TextShowcaseView: View {
                             .fill(Color(.secondarySystemBackground))
                     )
             }
-            .ignoresSafeArea(.all, edges: .bottom)
+			.ignoresSafeArea(.all, edges: .vertical)
         }
         .overlay(alignment: .bottomTrailing) {
             fpsOverlay
@@ -115,13 +124,15 @@ struct TextShowcaseView: View {
                 "\(Int(fpsMonitor.fps.rounded())) / \(fpsMonitor.maximumFPS) fps"
             )
             .foregroundStyle(fpsColor)
-			.font(.title)
             Text("items: \(items.count)")
         }
-        .font(.caption.monospacedDigit())
+        .font(fpsFontSizes[fpsFontIndex].monospacedDigit())
         .padding(6)
         .background(.thinMaterial, in: Capsule())
         .padding()
+        .onTapGesture {
+            fpsFontIndex = (fpsFontIndex + 1) % fpsFontSizes.count
+        }
     }
 
     private var fpsColor: Color {
@@ -170,6 +181,8 @@ struct ImageShowcaseView: View {
 
     @State private var items: [ImageItem] = []
     @State private var fpsMonitor = FPSMonitor()
+    @State private var fpsFontIndex = 1
+    private let fpsFontSizes: [Font] = [.caption2, .caption, .footnote, .body, .title3]
 
     var body: some View {
         GeometryReader { proxy in
@@ -183,7 +196,7 @@ struct ImageShowcaseView: View {
             ) { item in
                 Self.cell(for: item)
             }
-            .ignoresSafeArea(.all, edges: .bottom)
+			.ignoresSafeArea(.all, edges: .vertical)
         }
         .overlay(alignment: .bottomTrailing) {
             fpsOverlay
@@ -204,14 +217,16 @@ struct ImageShowcaseView: View {
             Text(
                 "\(Int(fpsMonitor.fps.rounded())) / \(fpsMonitor.maximumFPS) fps"
             )
-			.font(.title)
             .foregroundStyle(fpsColor)
             Text("items: \(items.count)")
         }
-        .font(.caption.monospacedDigit())
+        .font(fpsFontSizes[fpsFontIndex].monospacedDigit())
         .padding(6)
         .background(.thinMaterial, in: Capsule())
         .padding()
+        .onTapGesture {
+            fpsFontIndex = (fpsFontIndex + 1) % fpsFontSizes.count
+        }
     }
 
     private var fpsColor: Color {

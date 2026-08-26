@@ -32,7 +32,7 @@ struct EditableListView: View {
       .navigationTitle("Add / Remove / Reorder")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-         ToolbarItemGroup(placement: .bottomBar) {
+         ToolbarItemGroup(placement: .topBarTrailing) {
             Button {
                shuffle()
             } label: {
@@ -83,10 +83,11 @@ struct EditableListView: View {
       )
    }
 
-   private func add() {
-      let word = Self.words.randomElement()!
-      items.append(TextItem(text: "\(items.count + 1). \(word)"))
-   }
+	private func add() {
+		let word = Self.words.randomElement()!
+		let index = Int.random(in: 0...items.count)
+		items.insert(TextItem(text: "New: \(items.count + 1). \(word)"), at: index)
+	}
 
    private func remove(_ item: TextItem) {
       items.removeAll { $0.id == item.id }
