@@ -32,23 +32,11 @@ struct ScrollToIndexView: View {
       .navigationTitle("Scroll to Index")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-         ToolbarItemGroup(placement: .bottomBar) {
-            Button {
-               scrollToTop()
-            } label: {
-               Label("Top", systemImage: "arrow.up.to.line")
-            }
-
-            TextField("Index", text: $indexText)
-               .keyboardType(.numberPad)
-               .frame(width: 60)
-               .textFieldStyle(.roundedBorder)
-
-            Button {
-               scrollToEnteredIndex()
-            } label: {
-               Label("Go", systemImage: "scope")
-            }
+         ToolbarItemGroup(placement: .topBarTrailing) {
+            Text("Index: \(indexText)")
+               .font(.body.monospacedDigit())
+               .padding(6)
+               .background(.thinMaterial, in: Capsule())
 
             Spacer()
 
@@ -71,17 +59,6 @@ struct ScrollToIndexView: View {
             RoundedRectangle(cornerRadius: 12)
                .fill(Color(.secondarySystemBackground))
          )
-   }
-
-   private func scrollToTop() {
-      scrollTarget = items.first?.id
-   }
-
-   private func scrollToEnteredIndex() {
-      guard let index = Int(indexText), items.indices.contains(index) else {
-         return
-      }
-      scrollTarget = items[index].id
    }
 
    private func scrollToRandom() {
