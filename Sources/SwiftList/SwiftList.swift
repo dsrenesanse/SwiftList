@@ -1,6 +1,5 @@
 //
 //  SwiftList.swift
-//  SwiftListExample
 //
 //  Created by Dan on 18/07/2026.
 //
@@ -72,7 +71,6 @@ where Item.ID: Sendable {
 
     public func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-	// main actor by default
     public final class Coordinator: NSObject, UICollectionViewDataSource,
         UICollectionViewDelegateFlowLayout
     {
@@ -155,6 +153,42 @@ where Item.ID: Sendable {
                 sizeCache[result.id] = result.size
             }
         }
+		
+		private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
+			Array<IndexPath>,
+			Array<IndexPath>,
+			Array<(from: IndexPath, to: IndexPath)>,
+		) {
+			var deletes = Array<IndexPath>()
+			var inserts = Array<IndexPath>()
+			var moves = Array<(from: IndexPath, to: IndexPath)>()
+
+			for change in diff {
+				switch change {
+					case .remove(let offset, _, let associatedWith):
+						if associatedWith == nil {
+							deletes.append(IndexPath(item: offset, section: 0))
+						}
+					case .insert(let offset, _, let associatedWith):
+						if let from = associatedWith {
+							moves.append(
+								(
+									IndexPath(item: from, section: 0),
+									IndexPath(item: offset, section: 0)
+								)
+							)
+						} else {
+							inserts.append(IndexPath(item: offset, section: 0))
+						}
+				}
+			}
+
+			return (
+				deletes,
+				inserts,
+				moves,
+			)
+		}
 
         public func collectionView(
             _ collectionView: UICollectionView,
@@ -185,42 +219,6 @@ where Item.ID: Sendable {
             sizeForItemAt indexPath: IndexPath
         ) -> CGSize {
             sizeCache[parent.items[indexPath.item].id] ?? .zero
-        }
-
-        private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
-            Array<IndexPath>,
-            Array<IndexPath>,
-            Array<(from: IndexPath, to: IndexPath)>,
-        ) {
-            var deletes = Array<IndexPath>()
-            var inserts = Array<IndexPath>()
-            var moves = Array<(from: IndexPath, to: IndexPath)>()
-
-            for change in diff {
-                switch change {
-                    case .remove(let offset, _, let associatedWith):
-                        if associatedWith == nil {
-                            deletes.append(IndexPath(item: offset, section: 0))
-                        }
-                    case .insert(let offset, _, let associatedWith):
-                        if let from = associatedWith {
-                            moves.append(
-                                (
-                                    IndexPath(item: from, section: 0),
-                                    IndexPath(item: offset, section: 0)
-                                )
-                            )
-                        } else {
-                            inserts.append(IndexPath(item: offset, section: 0))
-                        }
-                }
-            }
-
-            return (
-                deletes,
-                inserts,
-                moves,
-            )
         }
     }
 }
