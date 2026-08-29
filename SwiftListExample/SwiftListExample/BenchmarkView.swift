@@ -33,6 +33,7 @@ enum ShowcaseTab: Hashable {
     case images
     case edit
     case scroll
+    case search
 }
 
 struct BenchmarkView: View {
@@ -64,6 +65,13 @@ struct BenchmarkView: View {
                 Label("Scroll", systemImage: "scope")
             }
             .tag(ShowcaseTab.scroll)
+            NavigationStack {
+                SearchListView()
+            }
+            .tabItem {
+                Label("Search", systemImage: "magnifyingglass")
+            }
+            .tag(ShowcaseTab.search)
         }
     }
 }
@@ -102,7 +110,7 @@ struct TextShowcaseView: View {
                             .fill(Color(.secondarySystemBackground))
                     )
             }
-			.ignoresSafeArea(.all, edges: .vertical)
+            .ignoresSafeArea(.all, edges: .vertical)
         }
         .overlay(alignment: .bottomTrailing) {
             fpsOverlay
@@ -196,7 +204,7 @@ struct ImageShowcaseView: View {
             ) { item in
                 Self.cell(for: item)
             }
-			.ignoresSafeArea(.all, edges: .vertical)
+            .ignoresSafeArea(.all, edges: .vertical)
         }
         .overlay(alignment: .bottomTrailing) {
             fpsOverlay

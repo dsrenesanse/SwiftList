@@ -1,51 +1,52 @@
 //
-//  ScrollToIndexView.swift
+//  SearchListView.swift
 //  SwiftListExample
 //
-//  Demonstrates scrolling a SwiftList to a specific item by index.
+//  Demonstrates a SwiftList with a search text field in the toolbar.
 //
 
 import SwiftList
 import SwiftUI
 import UIKit
 
-struct ScrollToIndexView: View {
-    @State private var items: [TextItem] = ScrollToIndexView.sampleItems()
-    @State private var scrollTarget: TextItem.ID?
-    @State private var indexText = "0"
+struct SearchListView: View {
+    @State private var allItems: [TextItem] = SearchListView.sampleItems()
+    @State private var searchText = ""
+    @State var inputSize = 28.0
+
+    private var filteredItems: [TextItem] {
+        if searchText.isEmpty {
+            return allItems
+        }
+        return allItems.filter {
+            $0.text.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         GeometryReader { proxy in
             SwiftList(
-                items: items,
+                items: filteredItems,
                 reuseIds: Set(["TextView"]),
                 reuseIdentifier: { _ in "TextView" },
-                scrollTarget: $scrollTarget,
-                scrollPosition: .centeredVertically,
+                keyboardDismissMode: .interactive,
+                bottomInset: $inputSize
             ) { item in
                 await Self.size(for: item.text, width: proxy.size.width)
             } cell: { item in
                 row(for: item)
             }
+            .ignoresSafeArea(.keyboard)
+            .ignoresSafeArea(.all, edges: .vertical)
         }
-        .navigationTitle("Scroll to Index")
+        //		.toolbarVisibility(.hidden, for: .tabBar)
+        .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Text("Index: \(indexText)")
-                    .font(.body.monospacedDigit())
-                    .padding(6)
-                    .background(.thinMaterial, in: Capsule())
-
-                Spacer()
-
-                Button {
-                    scrollToRandom()
-                } label: {
-                    Label("Random", systemImage: "dice")
-                }
-            }
-        }
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Games, Apps, Stories and More"
+        )
     }
 
     @ViewBuilder
@@ -60,15 +61,8 @@ struct ScrollToIndexView: View {
             )
     }
 
-    private func scrollToRandom() {
-        guard items.count > 1 else { return }
-        let index = Int.random(in: 0..<items.count)
-        indexText = "\(index)"
-        scrollTarget = items[index].id
-    }
-
     private static func sampleItems() -> [TextItem] {
-        (1...500).map { index in
+        (1...50).map { index in
             TextItem(text: "\(index). Item #\(index)")
         }
     }
@@ -78,9 +72,10 @@ struct ScrollToIndexView: View {
         for text: String,
         width: CGFloat
     ) async -> CGSize {
+
         let font = UIFont.preferredFont(forTextStyle: .body)
         let target = CGSize(
-            width: max(width - inset * 2, 0),
+            width: width,
             height: .greatestFiniteMagnitude
         )
         let rect = (text as NSString).boundingRect(
@@ -89,12 +84,12 @@ struct ScrollToIndexView: View {
             attributes: [.font: font],
             context: nil
         )
-        return CGSize(width: width, height: ceil(rect.height) + inset * 2)
+        return CGSize(width: width, height: ceil(rect.height))
     }
 }
 
 #Preview {
     NavigationStack {
-        ScrollToIndexView()
+        SearchListView()
     }
 }

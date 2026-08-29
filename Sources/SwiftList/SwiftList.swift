@@ -19,7 +19,8 @@ where Item.ID: Sendable {
     let keyboardDismissMode: UIScrollView.KeyboardDismissMode
     @Binding var scrollTarget: Item.ID?
     let scrollPosition: UICollectionView.ScrollPosition
-    let scrollAnimated: Bool
+    @Binding var bottomInset: Double
+    let handleKeyboard: Bool
     @ViewBuilder let cell: (Item) -> Cell
 
     public init(
@@ -29,7 +30,8 @@ where Item.ID: Sendable {
         keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none,
         scrollTarget: Binding<Item.ID?> = .constant(nil),
         scrollPosition: UICollectionView.ScrollPosition = .centeredVertically,
-        scrollAnimated: Bool = true,
+        bottomInset: Binding<Double> = .constant(0.0),
+        handleKeyboard: Bool = true,
         itemSize: @escaping (Item) async -> CGSize,
         @ViewBuilder cell: @escaping (Item) -> Cell
     ) {
@@ -40,11 +42,13 @@ where Item.ID: Sendable {
         self.keyboardDismissMode = keyboardDismissMode
         self._scrollTarget = scrollTarget
         self.scrollPosition = scrollPosition
-        self.scrollAnimated = scrollAnimated
+        self._bottomInset = bottomInset
+        self.handleKeyboard = handleKeyboard
         self.cell = cell
     }
 
-    public func makeUIView(context: Context) -> UICollectionView {
+    public func makeUIView(context: Context) -> UIView {
+        let view = UIView()
         let layout = UICollectionViewFlowLayout()
         layout.estimatedItemSize = .zero
         let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -58,15 +62,46 @@ where Item.ID: Sendable {
                 forCellWithReuseIdentifier: id
             )
         }
-        return collectionView
+
+        view.addSubview(collectionView)
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        collectionView.heightAnchor.constraint(equalTo: view.heightAnchor).isActive = true
+        collectionView.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
+        collectionView.contentInset.bottom += bottomInset
+        if handleKeyboard {
+            var prevSize = 0.0
+            let keyboardReporter = KeyboardReporter { size in
+                let bottomInset = context.coordinator.bottomInset
+                let diff = size - prevSize
+                if !collectionView.isTracking {
+                    collectionView.contentOffset.y += diff
+                }
+                collectionView.contentInset.bottom = size + bottomInset
+                collectionView.scrollIndicatorInsets.bottom = size + bottomInset
+                prevSize = size
+                // flaky bug workaround
+                //			let offsetBefore = collectionView.contentOffset
+                //			collectionView.contentInset.bottom = size
+                //			collectionView.contentOffset = offsetBefore
+            }
+            view.addSubview(keyboardReporter)
+        }
+        return view
     }
 
     public func updateUIView(
-        _ collectionView: UICollectionView,
+        _ view: UIView,
         context: Context
     ) {
-        context.coordinator.parent = self
-        context.coordinator.apply(to: collectionView)
+        let coordinator = context.coordinator
+        coordinator.parent = self
+        guard
+            let collectionView = view.subviews.first(where: { view in
+                view as? UICollectionView != nil
+            })
+        else { return }
+        coordinator.apply(to: collectionView as! UICollectionView)
+        coordinator.bottomInset = bottomInset
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -75,6 +110,7 @@ where Item.ID: Sendable {
         UICollectionViewDelegateFlowLayout
     {
         var parent: SwiftList
+        var bottomInset = 0.0
         private var sizeCache = Dictionary<Item.ID, CGSize>()
         private var oldHashState = OrderedDictionary<Item.ID, Int>()
 
@@ -99,31 +135,33 @@ where Item.ID: Sendable {
             collectionView.scrollToItem(
                 at: IndexPath(item: index, section: 0),
                 at: parent.scrollPosition,
-                animated: parent.scrollAnimated
+                animated: true
             )
             parent.scrollTarget = nil
         }
 
         private func performApply(to collectionView: UICollectionView) async {
+
             let newIds = OrderedSet(parent.items.lazy.map(\.id))
             let oldIds = oldHashState.keys
             let diff = newIds.difference(from: oldIds).inferringMoves()
             let (deletes, inserts, moves) = identifyChanges(diff: diff)
-			
+
             let consitencyCheckPassed =
-			collectionView.numberOfItems(inSection: 0) - deletes.count + inserts.count == parent.items.count
-			
+                collectionView.numberOfItems(inSection: 0) - deletes.count + inserts.count
+                == parent.items.count
+
             if consitencyCheckPassed {
-				if moves.isEmpty {
-					if !deletes.isEmpty { collectionView.deleteItems(at: deletes) }
-					if !inserts.isEmpty { collectionView.insertItems(at: inserts) }
-				} else {
-					collectionView.performBatchUpdates {
-						collectionView.deleteItems(at: deletes)
-						collectionView.insertItems(at: inserts)
-						for move in moves { collectionView.moveItem(at: move.from, to: move.to) }
-					}
-				}
+                if moves.isEmpty {
+                    if !deletes.isEmpty { collectionView.deleteItems(at: deletes) }
+                    if !inserts.isEmpty { collectionView.insertItems(at: inserts) }
+                } else {
+                    collectionView.performBatchUpdates {
+                        collectionView.deleteItems(at: deletes)
+                        collectionView.insertItems(at: inserts)
+                        for move in moves { collectionView.moveItem(at: move.from, to: move.to) }
+                    }
+                }
             }
 
             var reconfigures = Array<IndexPath>()
@@ -153,42 +191,42 @@ where Item.ID: Sendable {
                 sizeCache[result.id] = result.size
             }
         }
-		
-		private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
-			Array<IndexPath>,
-			Array<IndexPath>,
-			Array<(from: IndexPath, to: IndexPath)>,
-		) {
-			var deletes = Array<IndexPath>()
-			var inserts = Array<IndexPath>()
-			var moves = Array<(from: IndexPath, to: IndexPath)>()
 
-			for change in diff {
-				switch change {
-					case .remove(let offset, _, let associatedWith):
-						if associatedWith == nil {
-							deletes.append(IndexPath(item: offset, section: 0))
-						}
-					case .insert(let offset, _, let associatedWith):
-						if let from = associatedWith {
-							moves.append(
-								(
-									IndexPath(item: from, section: 0),
-									IndexPath(item: offset, section: 0)
-								)
-							)
-						} else {
-							inserts.append(IndexPath(item: offset, section: 0))
-						}
-				}
-			}
+        private func identifyChanges(diff: CollectionDifference<Item.ID>) -> (
+            Array<IndexPath>,
+            Array<IndexPath>,
+            Array<(from: IndexPath, to: IndexPath)>,
+        ) {
+            var deletes = Array<IndexPath>()
+            var inserts = Array<IndexPath>()
+            var moves = Array<(from: IndexPath, to: IndexPath)>()
 
-			return (
-				deletes,
-				inserts,
-				moves,
-			)
-		}
+            for change in diff {
+                switch change {
+                    case .remove(let offset, _, let associatedWith):
+                        if associatedWith == nil {
+                            deletes.append(IndexPath(item: offset, section: 0))
+                        }
+                    case .insert(let offset, _, let associatedWith):
+                        if let from = associatedWith {
+                            moves.append(
+                                (
+                                    IndexPath(item: from, section: 0),
+                                    IndexPath(item: offset, section: 0)
+                                )
+                            )
+                        } else {
+                            inserts.append(IndexPath(item: offset, section: 0))
+                        }
+                }
+            }
+
+            return (
+                deletes,
+                inserts,
+                moves,
+            )
+        }
 
         public func collectionView(
             _ collectionView: UICollectionView,
@@ -208,8 +246,7 @@ where Item.ID: Sendable {
             )
             cell.contentConfiguration = UIHostingConfiguration {
                 self.parent.cell(item)
-            }
-            .margins(.all, 0)
+            }.margins(.all, 0)
             return cell
         }
 
