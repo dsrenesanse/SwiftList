@@ -7,8 +7,9 @@ A fast list for SwiftUI, built on `UICollectionView` with a flow layout and asyn
 It is made for lists where items change all the time — chat apps, and especially AI chat apps where text streams into the last message many times per second. A plain SwiftUI `List` or `ScrollView` starts to drop frames in that case. SwiftList does not, because it:
 
 - Measures item sizes off the main thread. You give it an async closure that returns the size for an item. Sizes are computed in parallel with a task group and cached by item id.
-- Only touches what changed. It diffs the old and new arrays by id, so it knows exactly which items were inserted, deleted, or moved. Items whose content changed (same id, different hash) are reconfigured in place, without animation.
+- Only touches what changed. It keeps a single array of items in memory — no duplicate copies — and diffs it against a snapshot of the previous item ids and hash codes, so it knows exactly which items were inserted, deleted, or moved. Items whose content changed (same id, different hash) are reconfigured in place, without animation.
 - Never re-renders the whole list. Cells are reused by `UICollectionView`, and each cell hosts your SwiftUI view through `UIHostingConfiguration`.
+- A-grade keyboard awareness. It follows the keyboard layout guide on every frame and adjusts the content inset and scroll offset so the list stays above the keyboard while it animates in and out — no jumps, no dead space.
 
 ## Requirements
 
@@ -40,6 +41,10 @@ SwiftList(
 ## Example
 
 Take a look at the example in the `SwiftListExample` folder and run it to see the result for yourself — a streaming chat that keeps the list at full frame rate even while text pours in.
+
+## Roadmap
+
+In progress: screen rotation size estimation reevaluation — when the device rotates and the available width changes, cached item sizes need to be recomputed instead of reused. This is under active development.
 
 ## License
 
