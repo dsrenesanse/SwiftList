@@ -33,7 +33,7 @@ struct SearchListView: View {
                 bottomInset: $inputSize
             ) { item in
                 await Self.size(for: item.text, width: proxy.size.width)
-            } cell: { item in
+            } cell: { item, _ in
                 row(for: item)
             }
             .ignoresSafeArea(.keyboard)

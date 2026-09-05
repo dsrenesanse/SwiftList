@@ -100,9 +100,9 @@ struct TextShowcaseView: View {
                 itemSize: { item in
                     await Self.size(for: item.text, width: proxy.size.width)
                 }
-            ) { item in
-                Text(item.text)
-                    .font(.body)
+            ) { item, size in
+                TextMessage(text: item.text, size: size)
+                    //				Text(item.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(inset)
                     .background(
@@ -132,7 +132,7 @@ struct TextShowcaseView: View {
                 "\(Int(fpsMonitor.fps.rounded())) / \(fpsMonitor.maximumFPS) fps"
             )
             .foregroundStyle(fpsColor)
-            Text("items: \(items.count)")
+            Text("items: \(items.count),L: \(items.last?.text.count ?? 0)")
         }
         .font(fpsFontSizes[fpsFontIndex].monospacedDigit())
         .padding(6)
@@ -156,7 +156,7 @@ struct TextShowcaseView: View {
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(10))
             let word = Self.words.randomElement()!
-            if items[items.count - 1].text.count > 3000 {
+            if items[items.count - 1].text.count > 20000 {
                 items.append(.init(text: word))
             } else {
                 items[items.count - 1].text += " " + word
@@ -171,7 +171,7 @@ struct TextShowcaseView: View {
     ) async -> CGSize {
         let font = UIFont.preferredFont(forTextStyle: .body)
         let target = CGSize(
-            width: max(width - inset * 2, 0),
+            width: width,
             height: .greatestFiniteMagnitude
         )
         let rect = (text as NSString).boundingRect(
@@ -180,7 +180,49 @@ struct TextShowcaseView: View {
             attributes: [.font: font],
             context: nil
         )
-        return CGSize(width: width, height: ceil(rect.height) + inset * 2)
+        return CGSize(width: width, height: ceil(rect.height))
+    }
+}
+
+struct TextMessage: UIViewRepresentable {
+    let text: String
+    let size: CGSize
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView(usingTextLayoutManager: false)
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.isScrollEnabled = false
+        textView.isEditable = false
+        textView.contentInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        textView.backgroundColor = .clear
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        textView.dataDetectorTypes = []
+        textView.textContainerInset = .zero
+        // blinking
+        //		textView.layoutManager.allowsNonContiguousLayout = true
+        update(textView)
+        return textView
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize?
+    {
+        return size
+    }
+
+    private func update(_ uiView: UIViewType) {
+        uiView.textStorage.append(.init(string: text))
+
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    final class Coordinator { var text = "" }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        guard context.coordinator.text != text else { return }
+        context.coordinator.text = text
+        uiView.text = text
     }
 }
 
@@ -201,7 +243,7 @@ struct ImageShowcaseView: View {
                 itemSize: { item in
                     await Self.size(for: item, width: proxy.size.width)
                 }
-            ) { item in
+            ) { item, _ in
                 Self.cell(for: item)
             }
             .ignoresSafeArea(.all, edges: .vertical)

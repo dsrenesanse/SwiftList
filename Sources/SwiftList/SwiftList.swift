@@ -21,7 +21,7 @@ where Item.ID: Sendable {
     let scrollPosition: UICollectionView.ScrollPosition
     @Binding var bottomInset: Double
     let handleKeyboard: Bool
-    @ViewBuilder let cell: (Item) -> Cell
+    @ViewBuilder let cell: (Item, CGSize) -> Cell
 
     public init(
         items: Array<Item>,
@@ -33,7 +33,7 @@ where Item.ID: Sendable {
         bottomInset: Binding<Double> = .constant(0.0),
         handleKeyboard: Bool = true,
         itemSize: @escaping (Item) async -> CGSize,
-        @ViewBuilder cell: @escaping (Item) -> Cell
+        @ViewBuilder cell: @escaping (Item, CGSize) -> Cell
     ) {
         self.items = items
         self.itemSize = itemSize
@@ -245,7 +245,7 @@ where Item.ID: Sendable {
                 for: indexPath
             )
             cell.contentConfiguration = UIHostingConfiguration {
-                self.parent.cell(item)
+                self.parent.cell(item, sizeCache[item.id] ?? .zero)
             }.margins(.all, 0)
             return cell
         }
